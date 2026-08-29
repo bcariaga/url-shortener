@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+.git/
+.gitignore
+.vs/
+.vscode/
+*.user
+*.suo
+docs/
+README.md
+*.md

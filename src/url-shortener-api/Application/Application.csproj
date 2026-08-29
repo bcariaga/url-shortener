@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><RootNamespace>UrlShortener.Application</RootNamespace></PropertyGroup>
+  <ItemGroup><PackageReference Include="Mediary" Version="1.0.0" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../Domain/Domain.csproj" /></ItemGroup>
+  <ItemGroup><Compile Remove="tests/**/*.cs" /></ItemGroup>
+</Project>

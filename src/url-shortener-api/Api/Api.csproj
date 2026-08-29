@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup><RootNamespace>UrlShortener.Api</RootNamespace><UserSecretsId>url-shortener-development</UserSecretsId></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Application/Application.csproj" /><ProjectReference Include="../Infrastructure/Infrastructure.csproj" /></ItemGroup>
+  <ItemGroup><Compile Remove="tests/**/*.cs" /></ItemGroup>
+</Project>

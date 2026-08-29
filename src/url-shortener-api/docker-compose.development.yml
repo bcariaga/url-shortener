@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: url_shortener
+      POSTGRES_USER: url_shortener
+      POSTGRES_PASSWORD: url_shortener_dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U url_shortener -d url_shortener"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports: ["5432:5432"]
+    volumes: [url-shortener-postgres:/var/lib/postgresql/data]
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.development
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__PostgreSql: Host=postgres;Port=5432;Database=url_shortener;Username=url_shortener;Password=url_shortener_dev
+    ports: ["8080:8080"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  url-shortener-postgres:
