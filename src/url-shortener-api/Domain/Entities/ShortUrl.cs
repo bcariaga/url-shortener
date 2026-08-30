@@ -1,3 +1,5 @@
+using UrlShortener.Domain.Telemetry;
+
 namespace UrlShortener.Domain.Entities;
 
 public sealed class ShortUrl
@@ -13,6 +15,7 @@ public sealed class ShortUrl
 
     public static ShortUrl Create(string code, string url, string owner, DateTimeOffset now)
     {
+        using var activity = ActivitySources.ShortUrl.StartActivity(nameof(Create));
         if (string.IsNullOrWhiteSpace(code)) throw new ArgumentException("Short code is required.", nameof(code));
         if (string.IsNullOrWhiteSpace(url)) throw new ArgumentException("URL is required.", nameof(url));
         if (string.IsNullOrWhiteSpace(owner)) throw new ArgumentException("Owner is required.", nameof(owner));
@@ -29,6 +32,7 @@ public sealed class ShortUrl
 
     public void Update(string url, DateTimeOffset now)
     {
+        using var activity = ActivitySources.ShortUrl.StartActivity(nameof(Update));
         if (IsDeleted) throw new InvalidOperationException("A deleted short URL cannot be updated.");
         if (string.IsNullOrWhiteSpace(url)) throw new ArgumentException("URL is required.", nameof(url));
         if (url != LongUrl)
@@ -40,6 +44,7 @@ public sealed class ShortUrl
 
     public void Delete(DateTimeOffset now)
     {
+        using var activity = ActivitySources.ShortUrl.StartActivity(nameof(Delete));
         if (IsDeleted) throw new InvalidOperationException("A deleted short URL cannot be deleted again.");
         IsDeleted = true;
         UpdatedAt = now;

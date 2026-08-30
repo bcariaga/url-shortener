@@ -5,6 +5,7 @@ using Mediary.Dispatcher;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UrlShortener.Api.Requests;
+using UrlShortener.Api.Telemetry;
 using UrlShortener.Application.Exceptions;
 using UrlShortener.Application.Handlers.Commands;
 using UrlShortener.Application.Handlers.Representations;
@@ -23,6 +24,7 @@ public sealed class ShortUrlsController(
     [HttpPost]
     public async Task<IActionResult> Create(UrlRequest request)
     {
+        using var activity = ActivitySources.ShortUrls.StartActivity(nameof(Create));
         try
         {
             var command = new CreateShortUrlCommand
@@ -50,6 +52,7 @@ public sealed class ShortUrlsController(
     [HttpPut("{code}")]
     public async Task<IActionResult> Update(string code, UrlRequest request)
     {
+        using var activity = ActivitySources.ShortUrls.StartActivity(nameof(Update));
         var command = new UpdateShortUrlCommand
         {
             OwnerId = OwnerId(),
@@ -75,6 +78,7 @@ public sealed class ShortUrlsController(
     [HttpDelete("{code}")]
     public async Task<IActionResult> Delete(string code)
     {
+        using var activity = ActivitySources.ShortUrls.StartActivity(nameof(Delete));
         var command = new DeleteShortUrlCommand
         {
             OwnerId = OwnerId(),

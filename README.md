@@ -30,3 +30,20 @@ For non-user-secrets environments, use `ManagementAuth__Tokens__0__Token` and `M
 The development Compose file starts Redis on `localhost:6379` and configures the API automatically. Redis is optional: if unavailable, the API continues with PostgreSQL. Cache entries use a sliding five-minute TTL and cache operations fall back after 100 ms. Override `Cache:TtlSeconds`, `Cache:TimeoutMilliseconds`, or `ConnectionStrings:Redis` as needed.
 
 Optional Redis integration coverage: `URL_SHORTENER_TEST_REDIS=localhost:6379 dotnet test src/url-shortener-api/Infrastructure/tests/Infrastructure.Tests.csproj -m:1`.
+
+## Local observability
+
+The development Compose file includes the standalone Aspire Dashboard at
+http://localhost:18888. It accepts OTLP from the API over the private Compose
+network and keeps logs, traces, and metrics in memory; it is anonymous and for
+local diagnostics only. When running the API directly, set
+`OTEL_EXPORTER_OTLP_ENDPOINT` and optionally `OTEL_EXPORTER_OTLP_PROTOCOL`.
+
+Tracing is enabled by default. Set `Observability:TracingEnabled` to `false`
+(or `Observability__TracingEnabled=false` in a container environment) to stop
+trace instrumentation and flow activity creation while retaining structured
+logs, metrics, and health checks. `Logging:LogLevel` remains authoritative for
+log filtering. Changes take effect after restarting the API.
+Dozzle remains useful for container console logs, but does not display OTLP
+traces or reconstruct transactions. Health probes are available at
+`/health/live` and `/health/ready`.

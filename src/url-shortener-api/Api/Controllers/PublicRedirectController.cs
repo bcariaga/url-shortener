@@ -1,6 +1,7 @@
 using FluentValidation;
 using Mediary.Dispatcher;
 using Microsoft.AspNetCore.Mvc;
+using UrlShortener.Api.Telemetry;
 using UrlShortener.Application.Handlers.Queries;
 namespace UrlShortener.Api.Controllers;
 
@@ -11,6 +12,7 @@ public sealed class PublicRedirectController(IRequestDispatcher dispatcher, IVal
     [HttpGet("{shortCode}")]
     public async Task<IActionResult> Get(string shortCode)
     {
+        using var activity = ActivitySources.PublicRedirect.StartActivity(nameof(Get));
         var query = new ResolveShortUrlQuery
         {
             ShortCode = shortCode

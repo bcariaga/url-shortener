@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace UrlShortener.Api;
+namespace UrlShortener.Api.Auth;
 
 public sealed class ManagementAuthOptions : IValidatableObject
 {

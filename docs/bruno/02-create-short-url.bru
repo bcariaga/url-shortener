@@ -22,9 +22,10 @@ body:json {
 
 script:post-response {
   const body = res.getBody();
-
+  
   if (body && body.shortCode) {
-    bru.setVar("shortCode", body.shortCode);
+    let shortCode = body.shortCode;
+    bru.setVar("shortCode" + shortCode , shortCode);
   }
 }
 
@@ -32,7 +33,7 @@ tests {
   test("returns 201 Created", function () {
     expect(res.getStatus()).to.equal(201);
   });
-
+  
   test("returns the generated short URL", function () {
     const body = res.getBody();
     expect(body.shortCode).to.be.a("string").with.lengthOf(6);

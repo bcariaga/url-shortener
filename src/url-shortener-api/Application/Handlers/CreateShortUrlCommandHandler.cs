@@ -5,6 +5,7 @@ using Mediary.Core;
 using UrlShortener.Domain.Entities;
 using UrlShortener.Domain.Repositories;
 using UrlShortener.Domain.Services;
+using UrlShortener.Application.Telemetry;
 
 namespace UrlShortener.Application.Handlers;
 
@@ -18,6 +19,7 @@ public sealed class CreateShortUrlCommandHandler(
 
     public async Task<ShortUrlRepresentation> HandleAsync(CreateShortUrlCommand command)
     {
+        using var activity = ActivitySources.CreateShortUrl.StartActivity(nameof(HandleAsync));
         var nonce = Guid.NewGuid().ToString("N");
         for (var counter = 0; counter < MaxAttempts; counter++)
         {

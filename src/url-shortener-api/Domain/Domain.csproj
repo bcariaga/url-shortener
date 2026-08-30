@@ -1,1 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><RootNamespace>UrlShortener.Domain</RootNamespace></PropertyGroup></Project>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><RootNamespace>UrlShortener.Domain</RootNamespace></PropertyGroup>
+  <ItemGroup><PackageReference Include="OpenTelemetry.Api" Version="1.12.0" /></ItemGroup>
+</Project>

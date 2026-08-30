@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using UrlShortener.Domain.Services;
+using UrlShortener.Infrastructure.Telemetry;
 
 namespace UrlShortener.Infrastructure.Services;
 
@@ -11,6 +12,7 @@ public sealed class Sha256Base62Generator : IShortCodeGenerator
 
     public string Generate(string ownerId, string url, string nonce, int counter, int length = 6)
     {
+        using var activity = ActivitySources.ShortCodeGenerator.StartActivity(nameof(Generate));
         string payload = $"{ownerId}\0{url}\0{nonce}\0{counter}";
         byte[] payloadBytes = Encoding.UTF8.GetBytes(payload);
 

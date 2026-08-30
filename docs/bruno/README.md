@@ -2,7 +2,7 @@
 
 Open this directory as a collection in Bruno and select the `local`
 environment. The environment targets the API profile from
-`Api/Properties/launchSettings.json` at `http://localhost:5080`.
+`Api/Properties/launchSettings.json` at `http://localhost:8080`.
 
 Before sending authenticated requests, set the secret `token` environment
 variable in Bruno to the same value configured under

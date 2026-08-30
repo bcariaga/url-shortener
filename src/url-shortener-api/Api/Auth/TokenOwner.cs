@@ -1,4 +1,4 @@
-namespace UrlShortener.Api;
+namespace UrlShortener.Api.Auth;
 
 public sealed class TokenOwner
 {

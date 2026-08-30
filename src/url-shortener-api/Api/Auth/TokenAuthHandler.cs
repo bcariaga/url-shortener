@@ -5,7 +5,7 @@ using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 
-namespace UrlShortener.Api;
+namespace UrlShortener.Api.Auth;
 
 public sealed class TokenAuthHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,

@@ -1,18 +1,23 @@
 using UrlShortener.Domain.Entities;
 using UrlShortener.Domain.Repositories;
 
-namespace UrlShortener.Api.Tests;
+namespace Api.Tests;
 
 public sealed class TestShortUrlRepository : IShortUrlRepository
 {
     private readonly List<ShortUrl> rows = [];
 
     public int Conflicts { get; set; }
+    public Exception? InsertException { get; set; }
 
     public IReadOnlyList<ShortUrl> Inserted => rows;
 
     public Task<ShortUrl> InsertAsync(ShortUrl entity, CancellationToken cancellationToken)
     {
+        if (InsertException is not null)
+        {
+            throw InsertException;
+        }
         if (Conflicts > 0)
         {
             Conflicts--;

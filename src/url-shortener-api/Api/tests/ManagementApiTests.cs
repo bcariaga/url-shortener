@@ -1,12 +1,13 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc.Testing;
+using UrlShortener.Api.Tests;
 using UrlShortener.Application.Handlers.Representations;
 using Xunit;
-using System.Text.Json.Nodes;
 
-namespace UrlShortener.Api.Tests;
+namespace Api.Tests;
 
 public sealed class ManagementApiTests : IClassFixture<ManagementFactory>
 {
@@ -21,7 +22,7 @@ public sealed class ManagementApiTests : IClassFixture<ManagementFactory>
     public async Task Root_is_anonymous_and_management_requires_a_known_token()
     {
         using var root = await factory.CreateClient().GetAsync("/");
-        Assert.Equal(HttpStatusCode.OK, root.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, root.StatusCode);
 
         using var missing = await CreateClient(null).PostAsJsonAsync(
             "/api/v1/short-urls",

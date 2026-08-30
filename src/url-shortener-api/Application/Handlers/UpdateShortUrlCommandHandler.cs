@@ -3,6 +3,7 @@ using UrlShortener.Application.Handlers.Representations;
 using Mediary.Core;
 using UrlShortener.Domain.Repositories;
 using UrlShortener.Domain.Services;
+using UrlShortener.Application.Telemetry;
 
 namespace UrlShortener.Application.Handlers;
 
@@ -13,6 +14,7 @@ public sealed class UpdateShortUrlCommandHandler(
 {
     public async Task<ShortUrlRepresentation?> HandleAsync(UpdateShortUrlCommand command)
     {
+        using var activity = ActivitySources.UpdateShortUrl.StartActivity(nameof(HandleAsync));
         var entity = await repository.FindActiveAsync(
             command.OwnerId,
             command.ShortCode,

@@ -1,3 +1,6 @@
 {
-  "dotnet.defaultSolution": "src/url-shortener-api/UrlShortener.sln"
+  "dotnet.defaultSolution": "src/url-shortener-api/UrlShortener.sln",
+  "cSpell.words": [
+    "Healtchecks"
+  ]
 }

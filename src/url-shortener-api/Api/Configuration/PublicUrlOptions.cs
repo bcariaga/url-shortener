@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace UrlShortener.Api;
+namespace UrlShortener.Api.Configuration;
 
 public sealed class PublicUrlOptions
 {
