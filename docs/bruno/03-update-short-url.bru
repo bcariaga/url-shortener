@@ -1,0 +1,33 @@
+meta {
+  name: Update short URL
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{baseUrl}}/api/v1/short-urls/{{shortCode}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "url": "{{updatedDestinationUrl}}"
+  }
+}
+
+tests {
+  test("returns 200 OK", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("keeps the code and updates the destination", function () {
+    const body = res.getBody();
+    expect(body.shortCode).to.equal(bru.getVar("shortCode"));
+    expect(body.url).to.equal(bru.getVar("updatedDestinationUrl"));
+  });
+}

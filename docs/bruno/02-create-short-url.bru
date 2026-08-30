@@ -1,0 +1,42 @@
+meta {
+  name: Create short URL
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/short-urls
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "url": "{{destinationUrl}}"
+  }
+}
+
+script:post-response {
+  const body = res.getBody();
+
+  if (body && body.shortCode) {
+    bru.setVar("shortCode", body.shortCode);
+  }
+}
+
+tests {
+  test("returns 201 Created", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+
+  test("returns the generated short URL", function () {
+    const body = res.getBody();
+    expect(body.shortCode).to.be.a("string").with.lengthOf(6);
+    expect(body.shortUrl).to.be.a("string");
+    expect(body.url).to.equal(bru.getVar("destinationUrl"));
+  });
+}

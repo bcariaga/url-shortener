@@ -1,0 +1,21 @@
+meta {
+  name: Delete short URL
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/short-urls/{{shortCode}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+tests {
+  test("returns 204 No Content", function () {
+    expect(res.getStatus()).to.equal(204);
+  });
+}
