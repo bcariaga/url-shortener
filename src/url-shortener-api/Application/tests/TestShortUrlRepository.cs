@@ -15,6 +15,8 @@ public sealed class TestShortUrlRepository : IShortUrlRepository
 
     public string? LastOwner { get; private set; }
 
+    public string? LastPublicCode { get; private set; }
+
     public int SaveCount { get; private set; }
 
     public Task<ShortUrl> InsertAsync(
@@ -43,6 +45,15 @@ public sealed class TestShortUrlRepository : IShortUrlRepository
     {
         LastOwner = ownerId;
         return Task.FromResult(Existing);
+    }
+
+    public Task<ShortUrl?> FindActiveByCodeAsync(string code, CancellationToken cancellationToken) =>
+        ReturnPublic(code);
+
+    private Task<ShortUrl?> ReturnPublic(string code)
+    {
+        LastPublicCode = code;
+        return Task.FromResult(Existing?.ShortCode == code ? Existing : null);
     }
 
     public Task SaveAsync(CancellationToken cancellationToken)

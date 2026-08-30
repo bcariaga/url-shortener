@@ -39,6 +39,10 @@ public sealed class EFShortUrlRepository(UrlShortenerDbContext dbContext) : ISho
                 && !entity.IsDeleted,
             cancellationToken);
 
+    public Task<ShortUrl?> FindActiveByCodeAsync(string code, CancellationToken cancellationToken) =>
+        dbContext.ShortUrls.AsNoTracking().SingleOrDefaultAsync(
+            entity => entity.ShortCode == code && !entity.IsDeleted, cancellationToken);
+
     public Task SaveAsync(CancellationToken cancellationToken) =>
         dbContext.SaveChangesAsync(cancellationToken);
 }

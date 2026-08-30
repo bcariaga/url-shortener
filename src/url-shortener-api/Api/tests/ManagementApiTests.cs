@@ -1,8 +1,10 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
 using UrlShortener.Application.Handlers.Representations;
 using Xunit;
+using System.Text.Json.Nodes;
 
 namespace UrlShortener.Api.Tests;
 
@@ -116,6 +118,43 @@ public sealed class ManagementApiTests : IClassFixture<ManagementFactory>
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         Assert.DoesNotContain("test-token", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Public_redirect_is_anonymous_and_preserves_exact_destination()
+    {
+        var entity = UrlShortener.Domain.Entities.ShortUrl.Create(
+            "aZ91Kb", "https://example.com/somewhere?x=1", "owner-a", DateTimeOffset.UtcNow);
+        await factory.Repository.InsertAsync(entity, CancellationToken.None);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        using var response = await client.GetAsync("/aZ91Kb");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("https://example.com/somewhere?x=1", response.Headers.Location?.ToString());
+    }
+
+    [Fact]
+    public async Task Public_redirect_conceals_invalid_unknown_and_deleted_codes()
+    {
+        var deleted = UrlShortener.Domain.Entities.ShortUrl.Create(
+            "del123", "https://example.com/deleted", "owner-a", DateTimeOffset.UtcNow);
+        deleted.Delete(DateTimeOffset.UtcNow);
+        await factory.Repository.InsertAsync(deleted, CancellationToken.None);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var responses = new[] { await client.GetAsync("/nope"), await client.GetAsync("/zz9999"), await client.GetAsync("/del123") };
+
+        var normalized = new List<string>();
+        foreach (var response in responses)
+        {
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+            var problem = JsonNode.Parse(await response.Content.ReadAsStringAsync())!.AsObject();
+            problem.Remove("traceId");
+            normalized.Add(problem.ToJsonString());
+        }
+
+        Assert.All(normalized, value => Assert.Equal(normalized[0], value));
     }
 
     private HttpClient CreateClient(string? token = "test-token")

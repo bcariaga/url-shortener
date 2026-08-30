@@ -32,5 +32,8 @@ public sealed class TestShortUrlRepository : IShortUrlRepository
             && entity.ShortCode == code
             && !entity.IsDeleted));
 
+    public Task<ShortUrl?> FindActiveByCodeAsync(string code, CancellationToken cancellationToken) =>
+        Task.FromResult(rows.SingleOrDefault(entity => entity.ShortCode == code && !entity.IsDeleted));
+
     public Task SaveAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }
