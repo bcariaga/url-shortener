@@ -6,7 +6,8 @@ namespace UrlShortener.Api.Tests;
 
 public class RootEndpointTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
 {
-    [Fact] public async Task Root_returns_plain_hello_world()
+    [Fact]
+    public async Task Root_returns_plain_hello_world()
     {
         using var response = await factory.CreateClient().GetAsync("/");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

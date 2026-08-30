@@ -1,4 +1,3 @@
-namespace UrlShortener.Application
-{
-    public sealed class ShortCodeAttemptsExhaustedException : Exception;
-}
+namespace UrlShortener.Application.Exceptions;
+
+public sealed class ShortCodeAttemptsExhaustedException : Exception;

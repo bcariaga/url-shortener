@@ -2,8 +2,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
-using Microsoft.Extensions.Primitives;
-using System.Diagnostics.CodeAnalysis;
 using UrlShortener.Domain.Entities;
 
 namespace UrlShortener.Infrastructure.Tests;
@@ -66,33 +64,5 @@ public class InfrastructureTests
         Assert.Equal("short_code", unique.Properties.Single().GetColumnName());
         Assert.Equal([nameof(ShortUrl.ShortCode)], unique.Properties.Select(property => property.Name));
         Assert.DoesNotContain(indexes, index => index.Properties.Any(property => property.Name == nameof(ShortUrl.OwnerId)));
-    }
-
-    [ExcludeFromCodeCoverage]
-    private class EmptyConfiguration : IConfiguration
-    {
-        public virtual string? this[string key] { get => null; set { } }
-        public IEnumerable<IConfigurationSection> GetChildren() => [];
-        public IChangeToken GetReloadToken() => new Microsoft.Extensions.Primitives.CancellationChangeToken(new CancellationToken(true));
-        public virtual IConfigurationSection GetSection(string key) => new EmptySection(key);
-    }
-    [ExcludeFromCodeCoverage]
-    private class EmptySection(string key) : EmptyConfiguration, IConfigurationSection
-    {
-        public string Key => key; public string Path => key; public string? Value { get => null; set { } }
-    }
-
-    [ExcludeFromCodeCoverage]
-    private sealed class ValidConfiguration : EmptyConfiguration
-    {
-        public override string? this[string key] { get => key == "ConnectionStrings:PostgreSql" ? "Host=localhost;Database=test;Username=test;Password=test" : null; set { } }
-        public override IConfigurationSection GetSection(string key) => key == "ConnectionStrings" ? new ConnectionStringsSection() : base.GetSection(key);
-    }
-
-    [ExcludeFromCodeCoverage]
-    private sealed class ConnectionStringsSection : EmptySection
-    {
-        public ConnectionStringsSection() : base("ConnectionStrings") { }
-        public override string? this[string key] { get => key == "PostgreSql" ? "Host=localhost;Database=test;Username=test;Password=test" : null; set { } }
     }
 }

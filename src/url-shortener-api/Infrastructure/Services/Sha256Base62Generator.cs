@@ -8,6 +8,7 @@ public sealed class Sha256Base62Generator : IShortCodeGenerator
 {
     private const string Alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
     private static readonly int Base = Alphabet.Length;
+
     public string Generate(string ownerId, string url, string nonce, int counter, int length = 6)
     {
         string payload = $"{ownerId}\0{url}\0{nonce}\0{counter}";

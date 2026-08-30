@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Configuration;
-using UrlShortener.Application;
+using UrlShortener.Domain.Services;
 namespace UrlShortener.Infrastructure.Services;
 
 public sealed class ConfigurationPublicUrlBuilder(IConfiguration configuration) : IPublicUrlBuilder

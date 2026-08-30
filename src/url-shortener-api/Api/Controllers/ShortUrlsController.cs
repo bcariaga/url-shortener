@@ -1,58 +1,112 @@
-
+using System.Security.Claims;
 using FluentValidation;
+using FluentValidation.Results;
 using Mediary.Dispatcher;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
-using UrlShortener.Application;
+using UrlShortener.Api.Requests;
+using UrlShortener.Application.Exceptions;
+using UrlShortener.Application.Handlers.Commands;
+using UrlShortener.Application.Handlers.Representations;
+
 namespace UrlShortener.Api.Controllers;
 
-[ApiController, Route("api/v1/short-urls"), Authorize]
-public sealed class ShortUrlsController(IRequestDispatcher dispatcher, IValidator<CreateShortUrlCommand> createShortUrlCommandValidator) : ControllerBase
+[ApiController]
+[Route("api/v1/short-urls")]
+[Authorize]
+public sealed class ShortUrlsController(
+    IRequestDispatcher dispatcher,
+    IValidator<CreateShortUrlCommand> createValidator,
+    IValidator<UpdateShortUrlCommand> updateValidator,
+    IValidator<DeleteShortUrlCommand> deleteValidator) : ControllerBase
 {
     [HttpPost]
-    public async Task<IActionResult> Create(CreateShortUrlCommand request)
+    public async Task<IActionResult> Create(UrlRequest request)
     {
-        var validationResult = createShortUrlCommandValidator.Validate(request);
-        if (!validationResult.IsValid) return BadRequest(CreateErrorFromValidationResult(validationResult));
-
         try
         {
-            var result = await dispatcher.DispatchAsync<ShortUrlRepresentation, CreateShortUrlCommand>(
-                new(
-                    Owner(),
-                    request.Url));
+            var command = new CreateShortUrlCommand
+            {
+                OwnerId = OwnerId(),
+                Url = request.Url ?? string.Empty
+            };
+            var validationResult = await createValidator.ValidateAsync(command);
+            if (!validationResult.IsValid)
+            {
+                return ValidationError(validationResult);
+            }
+            var result = await dispatcher.DispatchAsync<ShortUrlRepresentation, CreateShortUrlCommand>(command);
 
             return Created(result.ShortUrl, result);
         }
         catch (ShortCodeAttemptsExhaustedException)
         {
-            return Problem(statusCode: 503, title: "Short URL capacity temporarily unavailable.");
+            return Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "Short URL capacity temporarily unavailable.");
         }
     }
 
     [HttpPut("{code}")]
     public async Task<IActionResult> Update(string code, UrlRequest request)
     {
-        if (!Valid(request.Url)) return ValidationProblem("The URL must be an absolute HTTP or HTTPS URL of 2,048 characters or fewer.");
-        if (!Code(code)) return NotFoundProblem();
-        var result = await dispatcher.DispatchAsync<ShortUrlRepresentation?, UpdateShortUrlCommand>(new(Owner(), code, request.Url!));
-        return result is null ? NotFoundProblem() : Ok(result);
+        var command = new UpdateShortUrlCommand
+        {
+            OwnerId = OwnerId(),
+            ShortCode = code,
+            Url = request.Url ?? string.Empty
+        };
+        var validationResult = await updateValidator.ValidateAsync(command);
+        if (HasErrorFor(validationResult, nameof(UpdateShortUrlCommand.ShortCode)))
+        {
+            return NotFoundError();
+        }
+
+        if (!validationResult.IsValid)
+        {
+            return ValidationError(validationResult);
+        }
+
+        var result = await dispatcher.DispatchAsync<ShortUrlRepresentation?, UpdateShortUrlCommand>(command);
+
+        return result is null ? NotFoundError() : Ok(result);
     }
 
     [HttpDelete("{code}")]
     public async Task<IActionResult> Delete(string code)
     {
-        if (!Code(code)) return NotFoundProblem();
-        return await dispatcher.DispatchAsync<bool, DeleteShortUrlCommand>(new(Owner(), code)) ? NoContent() : NotFoundProblem();
+        var command = new DeleteShortUrlCommand
+        {
+            OwnerId = OwnerId(),
+            ShortCode = code
+        };
+        var validationResult = await deleteValidator.ValidateAsync(command);
+        if (!validationResult.IsValid)
+        {
+            return NotFoundError();
+        }
+
+        var deleted = await dispatcher.DispatchAsync<bool, DeleteShortUrlCommand>(command);
+        return deleted ? NoContent() : NotFoundError();
     }
-    private string Owner() => User.FindFirstValue("owner_id")!;
-    private static bool Code(string value) => value.Length == 6 && value.All(c => "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".Contains(c));
-    private IActionResult NotFoundProblem() => Problem(statusCode: 404, title: "Short URL not found.");
-    private static bool Valid(string? value) => ShortUrlValidation.IsDestination(value);
-    public sealed record UrlRequest(string? Url);
-    private static object CreateErrorFromValidationResult(FluentValidation.Results.ValidationResult validationResult) => new
+
+    private string OwnerId() => User.FindFirstValue("owner_id")!;
+
+    private IActionResult ValidationError(ValidationResult validationResult)
     {
-        validationResult.Errors
-    };
+        var errors = validationResult.Errors
+            .GroupBy(error => error.PropertyName)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(error => error.ErrorMessage).ToArray());
+
+        return ValidationProblem(new ValidationProblemDetails(errors));
+    }
+
+    private IActionResult NotFoundError() => Problem(
+        statusCode: StatusCodes.Status404NotFound,
+        title: "Short URL not found.");
+
+    private static bool HasErrorFor(ValidationResult result, string propertyName) =>
+        result.Errors.Any(error => error.PropertyName == propertyName);
 }

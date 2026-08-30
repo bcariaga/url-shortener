@@ -1,18 +1,20 @@
 using Microsoft.EntityFrameworkCore;
-using UrlShortener.Application;
 using UrlShortener.Domain.Entities;
 using UrlShortener.Domain.Repositories;
 
 namespace UrlShortener.Infrastructure.Repositories;
 
-public sealed class EFShortUrlRepository(UrlShortenerDbContext db) : IShortUrlRepository
+public sealed class EFShortUrlRepository(UrlShortenerDbContext dbContext) : IShortUrlRepository
 {
-    public async Task<ShortUrl> InsertAsync(ShortUrl entity, CancellationToken ct)
+    public async Task<ShortUrl> InsertAsync(
+        ShortUrl entity,
+        CancellationToken cancellationToken)
     {
-        db.ShortUrls.Add(entity);
+        dbContext.ShortUrls.Add(entity);
+
         try
         {
-            await db.SaveChangesAsync(ct);
+            await dbContext.SaveChangesAsync(cancellationToken);
             return entity;
         }
         catch (DbUpdateException ex)
@@ -22,11 +24,21 @@ public sealed class EFShortUrlRepository(UrlShortenerDbContext db) : IShortUrlRe
                 ConstraintName: "ux_short_urls_short_code"
             })
         {
-            db.Entry(entity).State = EntityState.Detached;
+            dbContext.Entry(entity).State = EntityState.Detached;
             throw new ShortCodeConflictException();
         }
     }
-    public Task<ShortUrl?> FindActiveAsync(string ownerId, string code, CancellationToken ct) =>
-        db.ShortUrls.SingleOrDefaultAsync(x => x.OwnerId == ownerId && x.ShortCode == code && !x.IsDeleted, ct);
-    public Task SaveAsync(CancellationToken ct) => db.SaveChangesAsync(ct);
+
+    public Task<ShortUrl?> FindActiveAsync(
+        string ownerId,
+        string code,
+        CancellationToken cancellationToken) =>
+        dbContext.ShortUrls.SingleOrDefaultAsync(
+            entity => entity.OwnerId == ownerId
+                && entity.ShortCode == code
+                && !entity.IsDeleted,
+            cancellationToken);
+
+    public Task SaveAsync(CancellationToken cancellationToken) =>
+        dbContext.SaveChangesAsync(cancellationToken);
 }

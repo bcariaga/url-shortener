@@ -10,6 +10,7 @@ public sealed class ShortUrl
     public bool IsDeleted { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+
     public static ShortUrl Create(string code, string url, string owner, DateTimeOffset now)
     {
         if (string.IsNullOrWhiteSpace(code)) throw new ArgumentException("Short code is required.", nameof(code));
@@ -32,7 +33,8 @@ public sealed class ShortUrl
         if (string.IsNullOrWhiteSpace(url)) throw new ArgumentException("URL is required.", nameof(url));
         if (url != LongUrl)
         {
-            LongUrl = url; UpdatedAt = now;
+            LongUrl = url;
+            UpdatedAt = now;
         }
     }
 
