@@ -1,8 +1,8 @@
-using UrlShortener.Application.Handlers.Commands;
 using Mediary.Core;
+using UrlShortener.Application.Handlers.Commands;
+using UrlShortener.Application.Telemetry;
 using UrlShortener.Domain.Repositories;
 using UrlShortener.Domain.Services;
-using UrlShortener.Application.Telemetry;
 
 namespace UrlShortener.Application.Handlers;
 

@@ -1,10 +1,10 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.EntityFrameworkCore;
-using Xunit;
+using Microsoft.Extensions.Options;
 using UrlShortener.Domain.Entities;
 using UrlShortener.Infrastructure.Cache;
-using Microsoft.Extensions.Options;
+using Xunit;
 
 namespace UrlShortener.Infrastructure.Tests;
 

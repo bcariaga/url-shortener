@@ -1,11 +1,11 @@
+using Mediary.Core;
 using UrlShortener.Application.Exceptions;
 using UrlShortener.Application.Handlers.Commands;
 using UrlShortener.Application.Handlers.Representations;
-using Mediary.Core;
+using UrlShortener.Application.Telemetry;
 using UrlShortener.Domain.Entities;
 using UrlShortener.Domain.Repositories;
 using UrlShortener.Domain.Services;
-using UrlShortener.Application.Telemetry;
 
 namespace UrlShortener.Application.Handlers;
 

@@ -1,5 +1,5 @@
-using Mediary;
 using FluentValidation;
+using Mediary;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace UrlShortener.Application;

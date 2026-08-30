@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using OpenTelemetry.Trace;
-using UrlShortener.Domain.Entities;
 
 namespace UrlShortener.Domain.Telemetry;
 

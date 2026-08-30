@@ -1,5 +1,5 @@
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Text.Json;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 namespace UrlShortener.Api.Healtchecks;
 
 public static class HealthResponseWriter
