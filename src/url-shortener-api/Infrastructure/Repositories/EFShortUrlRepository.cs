@@ -6,14 +6,12 @@ namespace UrlShortener.Infrastructure.Repositories;
 
 public sealed class EFShortUrlRepository(UrlShortenerDbContext dbContext) : IShortUrlRepository
 {
-    public async Task<ShortUrl> InsertAsync(
-        ShortUrl entity,
-        CancellationToken cancellationToken)
+    public async Task<ShortUrl> InsertAsync(ShortUrl entity, CancellationToken cancellationToken)
     {
-        dbContext.ShortUrls.Add(entity);
-
         try
         {
+            dbContext.ShortUrls.Add(entity);
+
             await dbContext.SaveChangesAsync(cancellationToken);
             return entity;
         }
@@ -39,10 +37,12 @@ public sealed class EFShortUrlRepository(UrlShortenerDbContext dbContext) : ISho
                 && !entity.IsDeleted,
             cancellationToken);
 
-    public Task<ShortUrl?> FindActiveByCodeAsync(string code, CancellationToken cancellationToken) =>
-        dbContext.ShortUrls.AsNoTracking().SingleOrDefaultAsync(
-            entity => entity.ShortCode == code && !entity.IsDeleted, cancellationToken);
+    public Task<string?> FindActiveDestinationByCodeAsync(string code, CancellationToken cancellationToken) =>
+        dbContext.ShortUrls.AsNoTracking()
+        .Where(entity => entity.ShortCode == code && !entity.IsDeleted)
+        .Select(entity => entity.LongUrl)
+        .SingleOrDefaultAsync(cancellationToken);
 
-    public Task SaveAsync(CancellationToken cancellationToken) =>
+    public Task SaveAsync(ShortUrl entity, CancellationToken cancellationToken) =>
         dbContext.SaveChangesAsync(cancellationToken);
 }

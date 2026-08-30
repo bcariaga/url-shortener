@@ -5,5 +5,5 @@ namespace UrlShortener.Application.Handlers;
 public sealed class ResolveShortUrlQueryHandler(IShortUrlRepository repository) : IRequestHandler<string?, ResolveShortUrlQuery>
 {
     public async Task<string?> HandleAsync(ResolveShortUrlQuery query) =>
-        (await repository.FindActiveByCodeAsync(query.ShortCode, CancellationToken.None))?.LongUrl;
+        await repository.FindActiveDestinationByCodeAsync(query.ShortCode, CancellationToken.None);
 }

@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 using UrlShortener.Domain.Entities;
+using UrlShortener.Infrastructure.Cache;
+using Microsoft.Extensions.Options;
 
 namespace UrlShortener.Infrastructure.Tests;
 
@@ -21,6 +23,35 @@ public class InfrastructureTests
         var context = scope.ServiceProvider.GetRequiredService<UrlShortenerDbContext>();
 
         Assert.Equal("Npgsql.EntityFrameworkCore.PostgreSQL", context.Database.ProviderName);
+    }
+
+    [Fact]
+    public void Missing_redis_uses_noop_provider()
+    {
+        using var provider = new ServiceCollection().AddInfrastructure(new ValidConfiguration()).BuildServiceProvider();
+        Assert.IsType<NoOpCacheProvider>(provider.GetRequiredService<ICacheProvider>());
+    }
+
+    [Fact]
+    public async Task Unreachable_redis_resolves_provider_graph_within_cache_budget()
+    {
+        var config = new ValidConfiguration { RedisEndpoint = "127.0.0.1:1" };
+        using var provider = new ServiceCollection().AddLogging().AddInfrastructure(config).BuildServiceProvider();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var cache = provider.GetRequiredService<ICacheProvider>();
+        var repository = provider.GetRequiredService<UrlShortener.Domain.Repositories.IShortUrlRepository>();
+        stopwatch.Stop();
+        Assert.IsType<RedisCacheProvider>(cache);
+        Assert.NotNull(repository);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public void Invalid_cache_options_fail_when_resolved()
+    {
+        var config = new ValidConfiguration { CacheTimeout = "0", CacheTtl = "-1" };
+        using var provider = new ServiceCollection().AddInfrastructure(config).BuildServiceProvider();
+        Assert.Throws<OptionsValidationException>(() => provider.GetRequiredService<IOptions<CacheOptions>>().Value);
     }
 
     [Fact]

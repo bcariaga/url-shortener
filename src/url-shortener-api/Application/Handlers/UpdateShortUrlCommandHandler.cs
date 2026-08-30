@@ -23,7 +23,7 @@ public sealed class UpdateShortUrlCommandHandler(
         }
 
         entity.Update(command.Url, clock.UtcNow);
-        await repository.SaveAsync(CancellationToken.None);
+        await repository.SaveAsync(entity, CancellationToken.None);
 
         return new(entity.ShortCode, urls.Build(entity.ShortCode), entity.LongUrl);
     }

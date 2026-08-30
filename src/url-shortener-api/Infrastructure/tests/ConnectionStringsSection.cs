@@ -5,15 +5,18 @@ namespace UrlShortener.Infrastructure.Tests;
 [ExcludeFromCodeCoverage]
 internal sealed class ConnectionStringsSection : EmptySection
 {
-    public ConnectionStringsSection() : base("ConnectionStrings")
+    public string? RedisEndpoint { get; }
+
+    public ConnectionStringsSection(string? redisEndpoint = null) : base("ConnectionStrings")
     {
+        RedisEndpoint = redisEndpoint;
     }
 
     public override string? this[string key]
     {
         get => key == "PostgreSql"
             ? "Host=localhost;Database=test;Username=test;Password=test"
-            : null;
+            : key == "Redis" ? RedisEndpoint : null;
         set { }
     }
 }

@@ -21,7 +21,7 @@ public sealed class DeleteShortUrlCommandHandler(
         }
 
         entity.Delete(clock.UtcNow);
-        await repository.SaveAsync(CancellationToken.None);
+        await repository.SaveAsync(entity, CancellationToken.None);
 
         return true;
     }

@@ -47,8 +47,14 @@ public sealed class TestShortUrlRepository : IShortUrlRepository
         return Task.FromResult(Existing);
     }
 
-    public Task<ShortUrl?> FindActiveByCodeAsync(string code, CancellationToken cancellationToken) =>
-        ReturnPublic(code);
+    public Task<string?> FindActiveDestinationByCodeAsync(string code, CancellationToken cancellationToken) =>
+        ReturnPublicDestination(code);
+
+    private Task<string?> ReturnPublicDestination(string code)
+    {
+        LastPublicCode = code;
+        return Task.FromResult(Existing?.ShortCode == code ? Existing.LongUrl : null);
+    }
 
     private Task<ShortUrl?> ReturnPublic(string code)
     {
@@ -56,7 +62,7 @@ public sealed class TestShortUrlRepository : IShortUrlRepository
         return Task.FromResult(Existing?.ShortCode == code ? Existing : null);
     }
 
-    public Task SaveAsync(CancellationToken cancellationToken)
+    public Task SaveAsync(ShortUrl entity, CancellationToken cancellationToken)
     {
         SaveCount++;
         return Task.CompletedTask;

@@ -30,12 +30,11 @@ public sealed class PostgresShortUrlRepositoryTests
         try
         {
             var repository = new EFShortUrlRepository(context);
-            var result = await repository.FindActiveByCodeAsync(code, CancellationToken.None);
-            var deletedResult = await repository.FindActiveByCodeAsync(deletedCode, CancellationToken.None);
+            var result = await repository.FindActiveDestinationByCodeAsync(code, CancellationToken.None);
+            var deletedResult = await repository.FindActiveDestinationByCodeAsync(deletedCode, CancellationToken.None);
 
-            Assert.Equal("https://example.com/active", result?.LongUrl);
+            Assert.Equal("https://example.com/active", result);
             Assert.Null(deletedResult);
-            Assert.Equal(EntityState.Detached, context.Entry(result!).State);
         }
         finally
         {

@@ -1,4 +1,12 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   postgres:
     image: postgres:17-alpine
     environment:
@@ -20,6 +28,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__PostgreSql: Host=postgres;Port=5432;Database=url_shortener;Username=url_shortener;Password=url_shortener_dev
+      ConnectionStrings__Redis: redis:6379
     ports: ["8080:8080"]
     depends_on:
       postgres:

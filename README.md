@@ -24,3 +24,9 @@ dotnet user-secrets remove ManagementAuth:Tokens:0:Token --project Api
 ```
 
 For non-user-secrets environments, use `ManagementAuth__Tokens__0__Token` and `ManagementAuth__Tokens__0__OwnerId` (and index `1` for another owner). Configure `ConnectionStrings__PostgreSql` and `PublicBaseUrl` through the environment as appropriate; never commit populated credentials.
+
+## Local Redis cache
+
+The development Compose file starts Redis on `localhost:6379` and configures the API automatically. Redis is optional: if unavailable, the API continues with PostgreSQL. Cache entries use a sliding five-minute TTL and cache operations fall back after 100 ms. Override `Cache:TtlSeconds`, `Cache:TimeoutMilliseconds`, or `ConnectionStrings:Redis` as needed.
+
+Optional Redis integration coverage: `URL_SHORTENER_TEST_REDIS=localhost:6379 dotnet test src/url-shortener-api/Infrastructure/tests/Infrastructure.Tests.csproj -m:1`.
