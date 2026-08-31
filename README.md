@@ -25,6 +25,45 @@ dotnet user-secrets remove ManagementAuth:Tokens:0:Token --project Api
 
 For non-user-secrets environments, use `ManagementAuth__Tokens__0__Token` and `ManagementAuth__Tokens__0__OwnerId` (and index `1` for another owner). Configure `ConnectionStrings__PostgreSql` and `PublicBaseUrl` through the environment as appropriate; never commit populated credentials.
 
+## Management token with Docker Compose
+
+`.NET` user secrets from the previous section are not automatically available
+inside containers. The development Compose file instead reads the management
+token from `URL_SHORTENER_TOKEN` in the shell that starts Compose and maps it to
+`ManagementAuth__Tokens__0__Token` inside the API container.
+
+Run these commands from `src/url-shortener-api`:
+
+```bash
+export URL_SHORTENER_TOKEN="$(openssl rand -hex 32)"
+export URL_SHORTENER_OWNER_ID="local-user-a"
+docker compose -f docker-compose.development.yml up --build -d
+```
+
+Compose stops with an error if `URL_SHORTENER_TOKEN` is missing. The owner ID is
+not secret and defaults to `local-user-a`, so exporting
+`URL_SHORTENER_OWNER_ID` is optional. Use the same token to call the protected
+create, update, and delete endpoints:
+
+```bash
+curl --fail-with-body \
+  -H "Authorization: Bearer $URL_SHORTENER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com"}' \
+  http://localhost:8080/api/v1/short-urls
+```
+
+Set Bruno's secret `token` variable to the value of
+`URL_SHORTENER_TOKEN`. After finishing, remove the token from the current shell:
+
+```bash
+unset URL_SHORTENER_TOKEN URL_SHORTENER_OWNER_ID
+```
+
+Do not put the token in `docker-compose.development.yml`, a committed `.env`
+file, command output, or documentation. Also avoid sharing the output of
+`docker compose config`, because it renders the resolved environment values.
+
 ## Local Redis cache
 
 The development Compose file starts Redis on `localhost:6379` and configures the API automatically. Redis is optional: if unavailable, the API continues with PostgreSQL. Cache entries use a sliding five-minute TTL and cache operations fall back after 100 ms. Override `Cache:TtlSeconds`, `Cache:TimeoutMilliseconds`, or `ConnectionStrings:Redis` as needed.

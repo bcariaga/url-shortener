@@ -29,6 +29,8 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__PostgreSql: Host=postgres;Port=5432;Database=url_shortener;Username=url_shortener;Password=url_shortener_dev
       ConnectionStrings__Redis: redis:6379
+      ManagementAuth__Tokens__0__Token: ${URL_SHORTENER_TOKEN:?Set URL_SHORTENER_TOKEN before starting Docker Compose}
+      ManagementAuth__Tokens__0__OwnerId: ${URL_SHORTENER_OWNER_ID:-local-user-a}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
       OTEL_EXPORTER_OTLP_PROTOCOL: grpc
     ports: ["8080:8080"]

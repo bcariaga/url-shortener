@@ -4,3 +4,5 @@
 .vscode/
 *.user
 *.suo
+
+.env
