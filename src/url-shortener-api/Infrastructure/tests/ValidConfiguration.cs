@@ -9,6 +9,7 @@ internal sealed class ValidConfiguration : EmptyConfiguration
     public string? CacheTimeout { get; set; }
     public string? CacheTtl { get; set; }
     public string? RedisEndpoint { get; set; }
+    public string? DatabaseMinimumThroughput { get; set; }
     public override string? this[string key]
     {
         get => key switch
@@ -16,6 +17,7 @@ internal sealed class ValidConfiguration : EmptyConfiguration
             "ConnectionStrings:PostgreSql" => "Host=localhost;Database=test;Username=test;Password=test",
             "Cache:TimeoutMilliseconds" => CacheTimeout,
             "Cache:TtlSeconds" => CacheTtl,
+            "DatabaseResilience:MinimumThroughput" => DatabaseMinimumThroughput,
             _ => null
         };
         set { }

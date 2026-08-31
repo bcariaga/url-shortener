@@ -70,6 +70,14 @@ The development Compose file starts Redis on `localhost:6379` and configures the
 
 Optional Redis integration coverage: `URL_SHORTENER_TEST_REDIS=localhost:6379 dotnet test src/url-shortener-api/Infrastructure/tests/Infrastructure.Tests.csproj -m:1`.
 
+## PostgreSQL resilience
+
+PostgreSQL operations use a shared circuit breaker around the EF Core repository. Only transient Npgsql and timeout failures count toward the circuit; caller cancellation, domain failures, and short-code conflicts do not. Redis cache hits bypass the database circuit, so cached redirects can continue while PostgreSQL is unavailable. Database-dependent requests return `503 Service Unavailable` when PostgreSQL fails or the circuit is open, with `Retry-After` while calls are being short-circuited.
+
+Connection and command timeouts, read retry attempts/delay, failure ratio, sampling window, minimum throughput, and break duration are configured under `DatabaseResilience` in `Api/appsettings.json`. Container overrides use the standard double-underscore form, for example `DatabaseResilience__BreakDurationSeconds`.
+
+The two read operations retry transient PostgreSQL failures twice with exponential backoff and jitter before reporting one failed operation to the circuit breaker. Creates and updates are intentionally not retried because write outcomes can be ambiguous if connectivity is lost during commit.
+
 ## Local observability
 
 The development Compose file includes the standalone Aspire Dashboard at

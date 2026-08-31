@@ -2,8 +2,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Npgsql;
+using Polly;
 using UrlShortener.Domain.Entities;
 using UrlShortener.Infrastructure.Cache;
+using UrlShortener.Infrastructure.Repositories;
+using UrlShortener.Infrastructure.Resilience;
 using Xunit;
 
 namespace UrlShortener.Infrastructure.Tests;
@@ -23,6 +27,9 @@ public class InfrastructureTests
         var context = scope.ServiceProvider.GetRequiredService<UrlShortenerDbContext>();
 
         Assert.Equal("Npgsql.EntityFrameworkCore.PostgreSQL", context.Database.ProviderName);
+        var connection = new NpgsqlConnectionStringBuilder(context.Database.GetConnectionString());
+        Assert.Equal(3, connection.Timeout);
+        Assert.Equal(5, connection.CommandTimeout);
     }
 
     [Fact]
@@ -30,6 +37,27 @@ public class InfrastructureTests
     {
         using var provider = new ServiceCollection().AddInfrastructure(new ValidConfiguration()).BuildServiceProvider();
         Assert.IsType<NoOpCacheProvider>(provider.GetRequiredService<ICacheProvider>());
+    }
+
+    [Fact]
+    public void Postgres_circuit_pipeline_is_shared_across_request_scopes()
+    {
+        using var provider = new ServiceCollection()
+            .AddLogging()
+            .AddInfrastructure(new ValidConfiguration())
+            .BuildServiceProvider();
+        using var firstScope = provider.CreateScope();
+        using var secondScope = provider.CreateScope();
+
+        var first = firstScope.ServiceProvider.GetRequiredKeyedService<ResiliencePipeline>(PostgresResiliencePipeline.Name);
+        var second = secondScope.ServiceProvider.GetRequiredKeyedService<ResiliencePipeline>(PostgresResiliencePipeline.Name);
+        var firstReadRetry = firstScope.ServiceProvider.GetRequiredKeyedService<ResiliencePipeline>(PostgresResiliencePipeline.ReadRetryName);
+        var secondReadRetry = secondScope.ServiceProvider.GetRequiredKeyedService<ResiliencePipeline>(PostgresResiliencePipeline.ReadRetryName);
+
+        Assert.Same(first, second);
+        Assert.Same(firstReadRetry, secondReadRetry);
+        Assert.IsType<CachingShortUrlRepository>(
+            firstScope.ServiceProvider.GetRequiredService<Domain.Repositories.IShortUrlRepository>());
     }
 
     [Fact]
@@ -52,6 +80,16 @@ public class InfrastructureTests
         var config = new ValidConfiguration { CacheTimeout = "0", CacheTtl = "-1" };
         using var provider = new ServiceCollection().AddInfrastructure(config).BuildServiceProvider();
         Assert.Throws<OptionsValidationException>(() => provider.GetRequiredService<IOptions<CacheOptions>>().Value);
+    }
+
+    [Fact]
+    public void Invalid_database_resilience_options_fail_when_resolved()
+    {
+        var config = new ValidConfiguration { DatabaseMinimumThroughput = "1" };
+        using var provider = new ServiceCollection().AddInfrastructure(config).BuildServiceProvider();
+
+        Assert.Throws<OptionsValidationException>(() =>
+            provider.GetRequiredService<IOptions<Resilience.DatabaseResilienceOptions>>().Value);
     }
 
     [Fact]

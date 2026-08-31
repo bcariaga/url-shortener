@@ -776,6 +776,19 @@ New URLs cannot be created.
 
 Uncached URLs cannot be resolved until database availability is restored.
 
+Database calls are protected by an application-wide circuit breaker outside the
+EF Core repository. Only transient PostgreSQL and timeout failures contribute to
+the circuit. Once open, database-dependent requests fail fast with `503 Service
+Unavailable`; cached redirects continue to bypass PostgreSQL. The circuit later
+allows a recovery probe and closes after a successful database call.
+
+Connection and command timeouts bound the calls used to sample database health.
+Idempotent reads retry transient failures twice with short exponential backoff
+and jitter. The circuit breaker observes the final read outcome after retries
+are exhausted. Automatic write retries are not enabled because losing
+connectivity during a commit can leave the outcome unknown and replaying a
+create could duplicate its effect.
+
 ---
 
 ### Analytics unavailable
