@@ -142,9 +142,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
-          printf '%s' "${{ secrets.UNSOLODEV_SSH_KEY }}" > ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.UNSOLODEV_SSH_KEY }}" > ~/.ssh/deploy_key
           sed -i 's/\r$//' ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null
           ssh-keyscan -H "${{ secrets.UNSOLODEV_SERVER_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Upload deploy assets
