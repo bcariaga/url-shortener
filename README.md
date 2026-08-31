@@ -1,6 +1,6 @@
 # URL Shortener
 
-See the [Design document](Design.md). The Management API is a prototype with no `users` table or registration flow: a user is a stable owner identifier associated with an opaque token in runtime configuration.
+See the [Design document](DESIGN.md). The Management API is a prototype with no `users` table or registration flow: a user is a stable owner identifier associated with an opaque token in runtime configuration.
 
 ## Local management API
 

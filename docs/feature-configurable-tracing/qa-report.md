@@ -1,36 +1,37 @@
 # QA report
 
-Verdict: Pass
+Verdict: Fail
 
-## Requirement coverage
+## Scope reviewed
 
-- The approved specification and current diff were reviewed independently.
-- `ObservabilityOptions` defaults `TracingEnabled` to `true`; startup tests cover absent, explicit disabled, and invalid values. Configuration supports both the application key and the environment-style `__` separator through the standard .NET configuration providers.
-- `FlowActivityMiddleware` keeps the request middleware and EventId `1001` completion logging in both modes, but skips `ActivitySource.StartActivity` when disabled even with a subscribed `ActivityListener`. Focused tests cover enabled activities, propagation/tags/outcomes, disabled activity creation, and retained safe logs.
-- `Program.cs` conditionally registers ASP.NET Core tracing, the custom source, and the OTLP trace exporter. Metrics and logging registration remain outside that condition, so the disabled mode preserves those signals and health endpoints.
-- Centralized unexpected-error handling remains active. Disabled-tracing integration coverage verifies HTTP 500, no flow activity, no EventId `1001`, exactly one EventId `1002`, and sanitized response content. Existing enabled-path coverage verifies RFC 7807 response shape and trace ID behavior.
-- No tracing, metrics, timer, or performance references were added to Application, Domain, or Infrastructure. The implementation is API-boundary-only and uses one top-level declared type per hand-written C# file in the reviewed additions.
-- Development configuration explicitly keeps tracing enabled; Compose does not override it. Health behavior remains covered and unchanged.
-- `Api/tests/AssemblyInfo.cs` disables xUnit parallelism because tests install process-global `ActivityListener` instances and use shared process telemetry state. This is a narrowly scoped, necessary test-isolation measure for the API test assembly.
+Reviewed the approved definition and technical specification against the current production code at `2598b21`, including options binding, OpenTelemetry registration, every custom `ActivitySource` call site, the API tests, and the complete solution test run. No implementation or test files were changed during this review.
 
-## Test quality
+## Verified behavior
 
-The tests exercise both positive and negative paths, including an external listener in disabled mode, centralized exception handling, configuration parsing failure, liveness, exporter startup with an unreachable endpoint, and preservation of structured logs. They use the existing API test infrastructure, startup factory, capturing logger, and listener rather than introducing another framework.
+- `ObservabilityOptions.TracingEnabled` defaults to `true`, development configuration sets it explicitly, and standard .NET configuration supports the `Observability__TracingEnabled` environment form.
+- Startup conditionally registers the OpenTelemetry trace provider and trace exporter when tracing is enabled. Metrics, structured logging, health endpoints, authentication, and business routes remain registered independently.
+- Centralized exception handling remains active and has integration coverage for a sanitized unexpected `500` response.
+
+## Blocking findings
+
+1. `TracingEnabled=false` prevents registration of the application-configured trace provider, but it does not prevent custom activity creation. Controllers, handlers, the Domain entity, and Infrastructure continue calling `ActivitySource.StartActivity`. An external `ActivityListener` can therefore observe those activities, violating the explicit zero-custom-activity requirement for disabled mode.
+2. The `FlowActivityMiddleware` described by the specification and previous report does not exist. The current `FlowLoggingMiddleware` has no tracing switch and does not create or suppress a semantic flow activity.
+3. There are no tests for absent, enabled, disabled, or invalid `TracingEnabled` configuration; no external-listener test for disabled mode; no startup-provider/exporter assertions; and no disabled-mode health or unexpected-failure coverage. `Api/tests/AssemblyInfo.cs`, the startup factory, and the activity-listener helpers cited by the previous report are absent.
+4. The feature inherits the unresolved layering and activity-cardinality failures from `feature-minimal-observability`; tracing is not API-boundary-only in the current implementation.
 
 ## Commands and results
 
-Run from `src/url-shortener-api`:
+Run from `src/url-shortener-api` unless stated otherwise:
 
-- `dotnet restore UrlShortener.sln`: passed.
-- `dotnet build UrlShortener.sln --no-restore -m:1`: passed; 0 warnings, 0 errors.
-- `dotnet test UrlShortener.sln --no-build -m:1`: passed; API 39, Application 24, Domain 6, Infrastructure 24, total 93/93.
-- `docker compose -f src/url-shortener-api/docker-compose.development.yml config`: passed.
-- `git diff --check`: passed.
+- `dotnet build UrlShortener.sln --no-restore -m:1` — passed, 0 warnings and 0 errors.
+- `dotnet test UrlShortener.sln --no-build -m:1` — passed: API 8, Application 24, Domain 6, Infrastructure 37; 75 total, 0 failed.
+- `URL_SHORTENER_TOKEN=validation-only docker compose -f docker-compose.development.yml config --quiet` — passed without rendering the resolved token.
+- `git diff --check` — passed for the current uncommitted documentation changes.
 
-## Findings
+The successful suite contains no focused configurable-tracing coverage and cannot support a `Pass` verdict for this task.
 
-No blocking findings.
+## Required before Pass
 
-## Residual risks
-
-The review and automated tests verify provider registration behavior and the disabled runtime path, but do not query Aspire Dashboard internals to inspect signal ingestion. That UI-level verification is not required for this configuration contract and was not used as a pass condition.
+- Make the tracing switch control the single API-boundary activity creation path, including when an external listener is subscribed.
+- Remove custom activity creation from Application, Domain, and Infrastructure as required by the parent observability specification.
+- Add enabled/disabled/default/invalid configuration tests, provider and exporter registration tests, disabled-mode exception and health tests, and an independent QA rerun.

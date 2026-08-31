@@ -1,46 +1,39 @@
 # QA report
 
-Verdict: Pass
+Verdict: Fail
 
-## Requirement coverage
+## Scope reviewed
 
-- Root demo removal is verified by deleted `HomeController`, HelloWorld application types and old tests, plus `Root_returns_not_found`.
-- Liveness uses an empty health-check predicate and returns 200 without dependency registrations being selected.
-- Readiness uses `AddDbContextCheck`, tagged checks, configured positive timeout, deterministic sorted/sanitized JSON, and maps PostgreSQL failure to 503. Integration tests cover PostgreSQL unhealthy, Redis degraded (200), and Redis omitted when unconfigured.
-- Redis probing applies `WaitAsync(cancellationToken)`; focused tests cover healthy, degraded, timeout, and caller cancellation.
-- Flow middleware creates only the four API activities (`create`, `update`, `delete`, `resolve`), records allowed outcomes/public code only, verifies async `Activity.Current` propagation and one activity per flow, and marks/rethrows unexpected exceptions.
-- Structured logs have stable EventIds and safe named properties. Tests cover successful outcomes, expected failures, sensitive-data exclusion, and exactly one centralized unexpected-error record with safe RFC7807 response.
-- Application, Domain, and Infrastructure contain no new trace, metric, timer, or performance logic. Observability remains API-boundary-only except the pre-existing cache degradation logger.
-- OpenTelemetry conditionally configures traces, ASP.NET Core/runtime metrics, and logs only when an OTLP endpoint exists. Startup tests cover absent and unreachable endpoint behavior.
-- Compose includes the pinned standalone Aspire Dashboard, internal OTLP gRPC endpoint, anonymous local UI, and no API dependency on dashboard health/order.
+Reviewed the approved definition and technical specification against the current production code at `2598b21`, the API test assembly, the complete solution test run, and the development Compose configuration. No implementation or test files were changed during this review.
 
-## Test quality
+## Verified behavior
 
-The added tests exercise behavior at middleware, health-check, startup, and API
-integration boundaries rather than merely compiling types. Readiness tests use
-controlled registrations to prove status mapping and sanitization; activity
-tests use an `ActivityListener`; logging tests use a capturing provider; startup
-tests verify exporter gating. New hand-written files each contain one
-top-level type and the solution builds without warnings.
+- The obsolete root demo has been removed. The existing API integration test verifies that `GET /` returns `404 Not Found` while management endpoints remain protected.
+- `/health/live` is mapped with an empty predicate. `/health/ready` selects tagged PostgreSQL and configured Redis checks, applies bounded timeouts, and writes a sorted response without exception details.
+- PostgreSQL is treated as required and Redis as degraded/optional in the registrations.
+- Structured completion logging uses EventId `1001`. The centralized unexpected-exception path uses EventId `1002` and has one API integration test proving a sanitized `500` response and a single error record.
+- ASP.NET Core and runtime metrics plus conditional OTLP export are registered. Compose contains the standalone Aspire Dashboard and does not make the API depend on it.
+
+## Blocking findings
+
+1. The approved design requires at most one semantic activity at the API flow boundary and explicitly excludes tracing from Application, Domain, repositories, and other business or persistence classes. The implementation instead starts activities in controllers, all Application handlers, the `ShortUrl` Domain entity, EF and caching repositories, Redis operations, URL building, and short-code generation. A request can therefore create several custom spans and the lower layers now depend on OpenTelemetry.
+2. The specified `FlowActivityMiddleware` does not exist. `FlowLoggingMiddleware` records the completion log but does not own a single flow activity, attach the specified operation/outcome attributes, or mark that activity as failed before rethrowing an unexpected exception.
+3. The current API test assembly has eight tests. It has no focused tests for liveness filtering, readiness status mapping, PostgreSQL failure, Redis degradation, Redis omission, health cancellation, activity cardinality/propagation, safe flow attributes, middleware outcome logs, or OTLP startup behavior. The previous report referred to tests and helper types that are not present in the repository.
+4. The acceptance criterion requiring the Aspire Dashboard to show a request trace with one semantic flow child and a correlated log is not supported by current automated evidence and was not revalidated live in this review.
 
 ## Commands and results
 
-- `dotnet restore src/url-shortener-api/UrlShortener.sln` — passed.
-- `dotnet build src/url-shortener-api/UrlShortener.sln --no-restore -m:1` — passed, 0 warnings, 0 errors.
-- `dotnet test src/url-shortener-api/UrlShortener.sln --no-build -m:1` — passed, 88 tests (34 API, 24 Application, 6 Domain, 24 Infrastructure).
-- `docker compose -f src/url-shortener-api/docker-compose.development.yml config` — passed.
-- `git diff --check` — passed.
-- Live Compose smoke (`up -d --build`) — passed. PostgreSQL and Redis became healthy; `GET /health/live` returned 200; `GET /health/ready` returned 200 with both `postgresql` and `redis` Healthy; dashboard UI returned 302 from `http://localhost:18888`. `docker compose down` completed without `--volumes`, preserving the PostgreSQL volume.
+Run from `src/url-shortener-api` unless stated otherwise:
 
-## Findings
+- `dotnet build UrlShortener.sln --no-restore -m:1` — passed, 0 warnings and 0 errors.
+- `dotnet test UrlShortener.sln --no-build -m:1` — passed: API 8, Application 24, Domain 6, Infrastructure 37; 75 total, 0 failed.
+- `URL_SHORTENER_TOKEN=validation-only docker compose -f docker-compose.development.yml config --quiet` — passed without rendering the resolved token.
+- `git diff --check` — passed for the current uncommitted documentation changes.
 
-No blocking findings remain. The previous Redis cancellation, EF Core check,
-readiness mapping/coverage, structured logging, activity cardinality, startup
-gating, and Compose smoke gaps are addressed and independently verified.
+The successful build and existing suite do not prove the missing observability acceptance criteria.
 
-## Residual risks
+## Required before Pass
 
-The dashboard UI was validated by HTTP response and Compose transport/config;
-its rendered trace/log/metric views were not visually inspected. Long-term
-retention, alerting, and production/VPS observability remain intentionally out
-of scope.
+- Implement the single API-boundary flow activity described by the approved specification and remove custom tracing from Application, Domain, and Infrastructure.
+- Add focused tests for health behavior, flow cardinality and propagation, structured outcomes, unexpected failures, exporter gating, and missing/unreachable OTLP infrastructure.
+- Run an independent QA pass against the resulting code and replace this report only when the relevant checks and live diagnostic smoke pass.

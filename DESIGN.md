@@ -27,7 +27,7 @@ The system must support the following operations:
 
 Redirects use HTTP `302 Temporary Redirect`.
 
-A temporary redirect is preferred over a permanent redirect because requests continue reaching the service, allowing redirect activity to be observed and used for analytics.
+A temporary redirect is preferred over a permanent redirect because requests continue reaching the service, leaving room for future traffic analytics without changing the redirect contract.
 
 ---
 
@@ -206,13 +206,13 @@ Authorization: Bearer <app-token>
 
 Only the owner may delete the URL.
 
-Deletion can be implemented as logical deletion instead of physically removing the database record.
+Deletion is logical rather than physically removing the database record.
 
-For example:
+The resource stores a boolean deletion marker:
 
 ```text
-Status = Active
-Status = Deleted
+IsDeleted = false  -> active
+IsDeleted = true   -> deleted
 ```
 
 This prevents deleted short codes from being accidentally reassigned and preserves information useful for auditing.
@@ -230,7 +230,7 @@ Id
 ShortCode
 LongUrl
 OwnerId
-Status
+IsDeleted
 CreatedAt
 UpdatedAt
 ```
@@ -238,13 +238,16 @@ UpdatedAt
 Example:
 
 ```text
+Id: 42
 ShortCode: aZ91Kb
 LongUrl: https://example.com/long/url
 OwnerId: user-123
-Status: Active
+IsDeleted: false
 CreatedAt: 2026-08-29T00:00:00Z
 UpdatedAt: 2026-08-29T00:00:00Z
 ```
+
+`Id` is a PostgreSQL-generated `bigint` identity. `IsDeleted` is stored directly as a required boolean; there is no status enum or separate status table. New resources start with `IsDeleted = false`, updates advance `UpdatedAt` only when the destination changes, and deletion sets `IsDeleted = true` while preserving the short code.
 
 `ShortCode` must have a unique constraint.
 
@@ -570,165 +573,7 @@ This allows each workload to scale independently.
 
 ---
 
-## 11. Analytics
-
-Redirect traffic generates useful analytics information.
-
-Possible events include:
-
-```text
-UrlVisited
-----------------
-ShortCode
-Timestamp
-Referrer
-UserAgent
-Country
-```
-
-Analytics must not be part of the critical redirect path.
-
-A redirect should not fail or become significantly slower because analytics processing is unavailable.
-
-The desired flow is therefore asynchronous:
-
-```text
-GET /aZ91Kb
-      |
-      +---- resolve URL ----> 302
-      |
-      +---- publish UrlVisited
-```
-
-For the take-home implementation, events can be handled using an in-process mechanism such as:
-
-```text
-System.Threading.Channels
-+
-BackgroundService
-```
-
-Conceptually:
-
-```text
-Redirect Request
-      |
-      v
-Channel<UrlVisited>
-      |
-      v
-Background Worker
-      |
-      +---- Analytics storage
-      |
-      +---- Umami
-```
-
-Umami can be used to visualize traffic and product analytics.
-
----
-
-## 12. Event Delivery Evolution
-
-An in-memory event queue is intentionally chosen for the initial implementation to avoid introducing unnecessary infrastructure.
-
-The application can expose an abstraction such as:
-
-```text
-IEventPublisher
-       |
-       v
-InMemoryEventPublisher
-       |
-       v
-Channel<T>
-```
-
-This implementation has an important limitation:
-
-> Events may be lost if the application process terminates before they are processed.
-
-For the current exercise this trade-off is acceptable.
-
-If stronger delivery guarantees or horizontal scaling become necessary, the implementation can evolve to:
-
-```text
-IEventPublisher
-       |
-       v
-Durable Message Broker
-```
-
-Possible technologies include:
-
-```text
-Kafka
-RabbitMQ
-AWS SQS
-Azure Service Bus
-```
-
-The resulting architecture becomes:
-
-```text
-Redirect Service
-       |
-       v
- Message Broker
-       |
-       v
-Analytics Workers
-       |
-       v
-Analytics Storage / Umami
-```
-
-This allows analytics processing to scale and fail independently from redirects.
-
----
-
-## 13. Analytics vs Audit Events
-
-Analytics and auditing represent different concerns.
-
-### Analytics events
-
-Describe system usage.
-
-Examples:
-
-```text
-URL visited
-Referrer
-Browser
-Device
-Country
-Timestamp
-```
-
-Umami can be used for this information.
-
-### Audit events
-
-Describe changes made to resources.
-
-Examples:
-
-```text
-URL created
-URL updated
-URL deleted
-Actor
-Timestamp
-Previous state
-New state
-```
-
-Audit information should remain under application control rather than relying exclusively on an external analytics system.
-
----
-
-## 14. Authentication and Authorization
+## 11. Authentication and Authorization
 
 Management endpoints require an application token.
 
@@ -748,7 +593,7 @@ This distinction keeps authentication-related processing outside the redirect cr
 
 ---
 
-## 15. Failure Scenarios
+## 12. Failure Scenarios
 
 ### Cache unavailable
 
@@ -791,16 +636,6 @@ create could duplicate its effect.
 
 ---
 
-### Analytics unavailable
-
-Redirects continue normally.
-
-Analytics events may be delayed or lost in the in-memory implementation.
-
-Introducing a durable message broker would address this limitation.
-
----
-
 ### Short-code collision
 
 The database rejects the duplicate `ShortCode`.
@@ -815,7 +650,7 @@ Because application instances are stateless, the load balancer can route request
 
 ---
 
-## 16. Scaling Strategy
+## 13. Scaling Strategy
 
 The implementation targets a small deployment while providing clear paths for evolution.
 
@@ -857,26 +692,21 @@ Redirect and management workloads can be separated.
    Partitioned URL Store
 ```
 
-Analytics evolves independently:
-
-```text
-Redirect Service
-      |
-      v
-Message Broker
-      |
-      v
-Analytics Workers
-      |
-      v
-Analytics Storage
-```
-
 ---
 
-## 17. Potential Improvements
+## 14. Potential Improvements
 
 The following improvements are intentionally excluded from the initial implementation but represent possible evolution paths.
+
+### Analytics and event delivery
+
+Redirect traffic could produce visit events containing a short code, timestamp, referrer, user agent, or derived geographic information. This feature is not implemented in the take-home prototype.
+
+If added, analytics must remain outside the critical redirect path so an unavailable analytics destination never delays or prevents a `302` response. A small deployment could begin with an in-process channel and background worker, accepting possible event loss on process termination. Stronger delivery requirements or horizontal scaling could later justify a durable broker and independent analytics workers.
+
+Analytics and audit events should remain separate concerns: analytics describes usage, while auditing records changes to resources and their actor. Neither is required for the current prototype.
+
+---
 
 ### Distributed short-code generation
 
@@ -1017,7 +847,7 @@ This would reduce both origin traffic and redirect latency.
 
 ---
 
-## 18. Key Architectural Decisions
+## 15. Key Architectural Decisions
 
 ### 302 instead of 301
 
@@ -1025,7 +855,7 @@ The system uses `302 Temporary Redirect`.
 
 Permanent redirects may be aggressively cached by browsers or intermediate infrastructure, causing subsequent visits to bypass the service.
 
-Using `302` keeps redirect requests observable by the service and therefore enables more reliable analytics collection.
+Using `302` keeps redirect requests observable by the service and permits analytics to be added later without clients bypassing the service.
 
 ---
 
@@ -1044,8 +874,6 @@ They remain independent resources with their own:
 ```text
 Owner
 Lifecycle
-Analytics
-Audit history
 ```
 
 Changing the destination does not change the short code.
@@ -1058,7 +886,7 @@ Every `POST` creates a new short-link resource.
 
 The system intentionally does not attempt to find an existing resource for the same long URL.
 
-This keeps resource identity independent from destination identity and allows multiple links to the same destination to have independent ownership and analytics.
+This keeps resource identity independent from destination identity and allows multiple links to the same destination to have independent ownership and lifecycle.
 
 ---
 
@@ -1080,26 +908,7 @@ Cache entries are invalidated after modifications.
 
 ---
 
-### Analytics outside the critical path
-
-The fundamental principle of the redirect architecture is:
-
-> Everything required to resolve the destination belongs in the critical path. Everything else should be moved out of it whenever possible.
-
-Therefore:
-
-```text
-URL lookup        -> synchronous
-Redirect          -> synchronous
-
-Analytics         -> asynchronous
-Audit processing  -> asynchronous where possible
-Reporting         -> asynchronous
-```
-
----
-
-## 19. Scope and Trade-offs
+## 16. Scope and Trade-offs
 
 The implementation intentionally favors simplicity over unnecessary infrastructure.
 
@@ -1108,12 +917,13 @@ The goal is not to simulate an internet-scale deployment, but to demonstrate an 
 For the take-home implementation:
 
 ```text
-ASP.NET Core
-PostgreSQL
-Redis
-In-process event queue
-Background worker
-Umami
+ASP.NET Core on .NET 10
+PostgreSQL with EF Core migrations
+Redis cache-aside with bounded fallback
+Bearer-token ownership for management operations
+PostgreSQL retry and circuit-breaker resilience
+Health checks, structured logs, metrics, and optional OTLP tracing
+Docker Compose with an Aspire Dashboard for local diagnostics
 ```
 
 provides enough infrastructure to demonstrate the core architectural decisions.
@@ -1122,6 +932,7 @@ More complex components such as:
 
 ```text
 Kafka
+Analytics workers
 Database sharding
 Redis Cluster
 CDN / Edge computing
@@ -1132,3 +943,11 @@ Multi-region deployment
 are intentionally left as evolution paths rather than implemented prematurely.
 
 The architecture should make these changes possible without requiring them for the initial system.
+
+---
+
+## 17. Use of AI
+
+AI-assisted tooling was used to help refine requirements, draft technical specifications, implement focused slices, generate tests, and perform independent review. The repository's file-based workflow kept the task definition and technical specification as the authoritative scope before implementation, followed by a separate QA pass.
+
+All generated changes were reviewed against the intended behavior and validated through builds, automated tests, integration checks, and local deployment checks. The author remains responsible for the architectural decisions, trade-offs, and submitted code.
