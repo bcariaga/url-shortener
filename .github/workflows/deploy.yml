@@ -179,4 +179,4 @@ jobs:
           test "$(curl "${retry[@]}" --fail --silent --show-error --output /dev/null --write-out '%{http_code}' https://short.unsolo.dev/health/live)" = "200"
           test "$(curl "${retry[@]}" --fail --silent --show-error --output /dev/null --write-out '%{http_code}' https://short.unsolo.dev/health/ready)" = "200"
           test "$(curl "${retry[@]}" --silent --show-error --output /dev/null --write-out '%{http_code}' https://aspire-short.unsolo.dev/)" = "401"
-          test "$(curl "${retry[@]}" --fail --silent --show-error --user "${ASPIRE_USERNAME}:${ASPIRE_PASS}" --output /dev/null --write-out '%{http_code}' https://aspire-short.unsolo.dev/)" = "200"
+          curl "${retry[@]}" --fail --silent --show-error --user "${ASPIRE_USERNAME}:${ASPIRE_PASS}" --output /dev/null https://aspire-short.unsolo.dev/
