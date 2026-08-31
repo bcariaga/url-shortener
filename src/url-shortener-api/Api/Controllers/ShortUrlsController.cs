@@ -96,7 +96,7 @@ public sealed class ShortUrlsController(
 
     private string OwnerId() => User.FindFirstValue("owner_id")!;
 
-    private IActionResult ValidationError(ValidationResult validationResult)
+    private ActionResult ValidationError(ValidationResult validationResult)
     {
         var errors = validationResult.Errors
             .GroupBy(error => error.PropertyName)
@@ -107,7 +107,7 @@ public sealed class ShortUrlsController(
         return ValidationProblem(new ValidationProblemDetails(errors));
     }
 
-    private IActionResult NotFoundError() => Problem(
+    private ObjectResult NotFoundError() => Problem(
         statusCode: StatusCodes.Status404NotFound,
         title: "Short URL not found.");
 

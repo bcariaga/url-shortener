@@ -24,5 +24,5 @@ public sealed class PublicRedirectController(IRequestDispatcher dispatcher, IVal
 
         return destination is null ? NotFoundError() : Redirect(destination);
     }
-    private IActionResult NotFoundError() => Problem(statusCode: StatusCodes.Status404NotFound, title: "Short URL not found.");
+    private ObjectResult NotFoundError() => Problem(statusCode: StatusCodes.Status404NotFound, title: "Short URL not found.");
 }
