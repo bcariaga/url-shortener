@@ -1,0 +1,182 @@
+name: test and deploy
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: url-shortener-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/url-shortener-api
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: url_shortener
+          POSTGRES_USER: url_shortener
+          POSTGRES_PASSWORD: url_shortener_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U url_shortener -d url_shortener"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      URL_SHORTENER_TEST_CONNECTION: Host=localhost;Port=5432;Database=url_shortener;Username=url_shortener;Password=url_shortener_test
+      URL_SHORTENER_TEST_REDIS: localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        working-directory: src/url-shortener-api
+        run: dotnet restore UrlShortener.sln
+
+      - name: Test
+        working-directory: src/url-shortener-api
+        run: dotnet test UrlShortener.sln --configuration Release --no-restore -m:1
+
+  build_and_push:
+    runs-on: ubuntu-latest
+    needs: test
+    if: >-
+      ${{ always() &&
+          (needs.test.result == 'success' ||
+           (github.event_name == 'workflow_dispatch' && needs.test.result == 'failure')) }}
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: image
+        run: echo "image=${IMAGE_NAME}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API
+        uses: docker/build-push-action@v6
+        with:
+          context: src/url-shortener-api
+          file: src/url-shortener-api/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.image }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy_server:
+    runs-on: ubuntu-latest
+    needs: [test, build_and_push]
+    if: ${{ always() && needs.build_and_push.result == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render Aspire Caddy authentication
+        env:
+          ASPIRE_USERNAME: ${{ secrets.ASPIRE_USERNAME }}
+          ASPIRE_PASS: ${{ secrets.ASPIRE_PASS }}
+        run: |
+          set -euo pipefail
+          if ! [[ "${ASPIRE_USERNAME}" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+            echo "ASPIRE_USERNAME may contain only letters, numbers, dot, underscore, and hyphen"
+            exit 1
+          fi
+          password_hash="$(docker run --rm caddy:2-alpine caddy hash-password --plaintext "${ASPIRE_PASS}")"
+          echo "::add-mask::${password_hash}"
+          sed \
+            -e "s|__ASPIRE_USERNAME__|${ASPIRE_USERNAME}|" \
+            -e "s|__ASPIRE_PASSWORD_HASH__|${password_hash}|" \
+            deploy/Caddyfile.template > deploy/Caddyfile.fragment
+          if grep -q '__ASPIRE_' deploy/Caddyfile.fragment; then
+            echo "Caddy authentication template was not fully rendered"
+            exit 1
+          fi
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package API image
+        env:
+          API_IMAGE: ${{ needs.build_and_push.outputs.image }}
+        run: |
+          set -euo pipefail
+          docker pull "${API_IMAGE}"
+          docker save "${API_IMAGE}" | gzip -1 > url-shortener-api-image.tar.gz
+
+      - name: Setup SSH
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s' "${{ secrets.UNSOLODEV_SSH_KEY }}" > ~/.ssh/deploy_key
+          sed -i 's/\r$//' ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.UNSOLODEV_SERVER_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload deploy assets
+        run: |
+          set -euo pipefail
+          remote="${{ secrets.UNSOLODEV_SERVER_USER }}@${{ secrets.UNSOLODEV_SERVER_HOST }}"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes "${remote}" \
+            "mkdir -p /home/deploy/url-shortener/deploy"
+          rsync -avz --omit-dir-times --no-perms \
+            -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes" \
+            deploy/compose.yml deploy/deploy-production.sh deploy/Caddyfile.fragment \
+            url-shortener-api-image.tar.gz \
+            "${remote}:/home/deploy/url-shortener/deploy/"
+
+      - name: Deploy on VPS
+        env:
+          API_IMAGE: ${{ needs.build_and_push.outputs.image }}
+        run: |
+          set -euo pipefail
+          remote="${{ secrets.UNSOLODEV_SERVER_USER }}@${{ secrets.UNSOLODEV_SERVER_HOST }}"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes "${remote}" \
+            "chmod +x /home/deploy/url-shortener/deploy/deploy-production.sh && /home/deploy/url-shortener/deploy/deploy-production.sh '${API_IMAGE}' '/home/deploy/url-shortener/deploy/url-shortener-api-image.tar.gz'"
+
+      - name: Verify public routes
+        env:
+          ASPIRE_USERNAME: ${{ secrets.ASPIRE_USERNAME }}
+          ASPIRE_PASS: ${{ secrets.ASPIRE_PASS }}
+        run: |
+          set -euo pipefail
+          retry=(--retry 12 --retry-delay 5 --retry-all-errors --connect-timeout 10 --max-time 30)
+          test "$(curl "${retry[@]}" --fail --silent --show-error https://short.unsolo.dev/)" = "Hello World!"
+          test "$(curl "${retry[@]}" --fail --silent --show-error --output /dev/null --write-out '%{http_code}' https://short.unsolo.dev/health/live)" = "200"
+          test "$(curl "${retry[@]}" --fail --silent --show-error --output /dev/null --write-out '%{http_code}' https://short.unsolo.dev/health/ready)" = "200"
+          test "$(curl "${retry[@]}" --silent --show-error --output /dev/null --write-out '%{http_code}' https://aspire-short.unsolo.dev/)" = "401"
+          test "$(curl "${retry[@]}" --fail --silent --show-error --user "${ASPIRE_USERNAME}:${ASPIRE_PASS}" --output /dev/null --write-out '%{http_code}' https://aspire-short.unsolo.dev/)" = "200"

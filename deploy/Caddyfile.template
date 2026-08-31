@@ -1,0 +1,17 @@
+short.unsolo.dev {
+	import shared_access_log
+	import block_scanners
+
+	reverse_proxy short-api:8080
+}
+
+aspire-short.unsolo.dev {
+	import shared_access_log
+	import block_scanners
+
+	basic_auth {
+		__ASPIRE_USERNAME__ __ASPIRE_PASSWORD_HASH__
+	}
+
+	reverse_proxy short-aspire:18888
+}

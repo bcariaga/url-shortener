@@ -1,0 +1,93 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - short-postgres-data:/var/lib/postgresql/data
+    networks:
+      - short_internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks:
+      - short_internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    profiles: ["tools"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__PostgreSql: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["exec /app/efbundle --connection \"$$ConnectionStrings__PostgreSql\""]
+    networks:
+      - short_internal
+
+  api:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__PostgreSql: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      ConnectionStrings__Redis: redis:6379
+      ManagementAuth__Tokens__0__Token: ${URL_SHORTENER_TOKEN:?URL_SHORTENER_TOKEN is required}
+      ManagementAuth__Tokens__0__OwnerId: ${URL_SHORTENER_OWNER_ID:?URL_SHORTENER_OWNER_ID is required}
+      PublicBaseUrl: https://short.unsolo.dev
+      Cache__TtlSeconds: 300
+      Cache__TimeoutMilliseconds: 100
+      HealthChecks__TimeoutSeconds: 2
+      Observability__TracingEnabled: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+    networks:
+      short_internal:
+      short_public:
+        aliases:
+          - short-api
+
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:13.0
+    restart: unless-stopped
+    environment:
+      DOTNET_DASHBOARD_OTLP_ENDPOINT_URL: http://+:18889
+      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    networks:
+      short_internal:
+      short_public:
+        aliases:
+          - short-aspire
+
+volumes:
+  short-postgres-data:
+    name: short-postgres-data
+
+networks:
+  short_internal:
+    name: short_internal
+    internal: true
+  short_public:
+    name: short_public
+    external: true
