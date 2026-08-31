@@ -1,4 +1,5 @@
 using UrlShortener.Domain.Entities;
+using UrlShortener.Domain.Exceptions;
 using Xunit;
 
 namespace UrlShortener.Domain.Tests;
@@ -23,7 +24,7 @@ public sealed class ShortUrlTests
     [InlineData("abc123", "", "owner")]
     [InlineData("abc123", "https://example.com", "")]
     public void Create_rejects_missing_values(string code, string url, string owner) =>
-        Assert.Throws<ArgumentException>(() => ShortUrl.Create(code, url, owner, Now));
+        Assert.IsType<RequiredShortUrlValueException>(Record.Exception(() => ShortUrl.Create(code, url, owner, Now)));
 
     [Fact]
     public void Update_is_idempotent_or_changes_destination()
@@ -47,7 +48,7 @@ public sealed class ShortUrlTests
 
         Assert.True(item.IsDeleted);
         Assert.Equal(Now.AddDays(1), item.UpdatedAt);
-        Assert.Throws<InvalidOperationException>(() => item.Delete(Now.AddDays(2)));
-        Assert.Throws<InvalidOperationException>(() => item.Update("https://new", Now.AddDays(2)));
+        Assert.IsType<InvalidShortUrlStateException>(Record.Exception(() => item.Delete(Now.AddDays(2))));
+        Assert.IsType<InvalidShortUrlStateException>(Record.Exception(() => item.Update("https://new", Now.AddDays(2))));
     }
 }

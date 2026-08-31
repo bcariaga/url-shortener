@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UrlShortener.Api.Requests;
 using UrlShortener.Api.Telemetry;
-using UrlShortener.Application.Exceptions;
 using UrlShortener.Application.Handlers.Commands;
 using UrlShortener.Application.Handlers.Representations;
 
@@ -25,28 +24,19 @@ public sealed class ShortUrlsController(
     public async Task<IActionResult> Create(UrlRequest request)
     {
         using var activity = ActivitySources.ShortUrls.StartActivity(nameof(Create));
-        try
+        var command = new CreateShortUrlCommand
         {
-            var command = new CreateShortUrlCommand
-            {
-                OwnerId = OwnerId(),
-                Url = request.Url ?? string.Empty
-            };
-            var validationResult = await createValidator.ValidateAsync(command);
-            if (!validationResult.IsValid)
-            {
-                return ValidationError(validationResult);
-            }
-            var result = await dispatcher.DispatchAsync<ShortUrlRepresentation, CreateShortUrlCommand>(command);
+            OwnerId = OwnerId(),
+            Url = request.Url ?? string.Empty
+        };
+        var validationResult = await createValidator.ValidateAsync(command);
+        if (!validationResult.IsValid)
+        {
+            return ValidationError(validationResult);
+        }
+        var result = await dispatcher.DispatchAsync<ShortUrlRepresentation, CreateShortUrlCommand>(command);
 
-            return Created(result.ShortUrl, result);
-        }
-        catch (ShortCodeAttemptsExhaustedException)
-        {
-            return Problem(
-                statusCode: StatusCodes.Status503ServiceUnavailable,
-                title: "Short URL capacity temporarily unavailable.");
-        }
+        return Created(result.ShortUrl, result);
     }
 
     [HttpPut("{code}")]

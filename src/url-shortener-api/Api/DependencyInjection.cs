@@ -13,6 +13,7 @@ using UrlShortener.Domain.Telemetry;
 using UrlShortener.Infrastructure.Telemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Logs;
+using UrlShortener.Api.Errors;
 
 namespace UrlShortener.Api;
 
@@ -23,6 +24,9 @@ public static class DependencyInjection
         var services = builder.Services;
 
         services.AddControllers();
+        services.AddProblemDetails();
+        services.AddExceptionHandler<KnownExceptionHandler>();
+        services.AddExceptionHandler<UnexpectedExceptionHandler>();
         services.AddOptions(builder);
 
         services

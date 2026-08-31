@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using UrlShortener.Api;
 using UrlShortener.Api.Healtchecks;
@@ -10,22 +9,7 @@ builder.ConfigureApi();
 
 var app = builder.Build();
 
-app.UseExceptionHandler(errorApp => errorApp.Run(static async context =>
-{
-    context.RequestServices.GetRequiredService<ILoggerFactory>()
-        .CreateLogger("Api.Errors")
-        .LogError(new EventId(1002, "UnexpectedApiFailure"), "Unexpected API failure. TraceId={TraceId}", Activity.Current?.TraceId.ToString());
-    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-    context.Response.ContentType = "application/problem+json";
-
-    await Results.Problem(
-        statusCode: 500,
-        title: "An unexpected error occurred.",
-        extensions: new Dictionary<string, object?>
-        {
-            ["traceId"] = Activity.Current?.TraceId.ToString()
-        }).ExecuteAsync(context);
-}));
+app.UseExceptionHandler();
 
 app.UseRouting();
 app.UseMiddleware<FlowLoggingMiddleware>();
@@ -44,4 +28,3 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.Run();
-

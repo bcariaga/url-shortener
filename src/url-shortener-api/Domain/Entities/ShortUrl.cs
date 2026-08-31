@@ -1,4 +1,5 @@
 using UrlShortener.Domain.Telemetry;
+using UrlShortener.Domain.Exceptions;
 
 namespace UrlShortener.Domain.Entities;
 
@@ -16,9 +17,9 @@ public sealed class ShortUrl
     public static ShortUrl Create(string code, string url, string owner, DateTimeOffset now)
     {
         using var activity = ActivitySources.ShortUrl.StartActivity(nameof(Create));
-        if (string.IsNullOrWhiteSpace(code)) throw new ArgumentException("Short code is required.", nameof(code));
-        if (string.IsNullOrWhiteSpace(url)) throw new ArgumentException("URL is required.", nameof(url));
-        if (string.IsNullOrWhiteSpace(owner)) throw new ArgumentException("Owner is required.", nameof(owner));
+        if (string.IsNullOrWhiteSpace(code)) throw new RequiredShortUrlValueException("shortCode");
+        if (string.IsNullOrWhiteSpace(url)) throw new RequiredShortUrlValueException("url");
+        if (string.IsNullOrWhiteSpace(owner)) throw new RequiredShortUrlValueException("owner");
 
         return new ShortUrl
         {
@@ -33,8 +34,8 @@ public sealed class ShortUrl
     public void Update(string url, DateTimeOffset now)
     {
         using var activity = ActivitySources.ShortUrl.StartActivity(nameof(Update));
-        if (IsDeleted) throw new InvalidOperationException("A deleted short URL cannot be updated.");
-        if (string.IsNullOrWhiteSpace(url)) throw new ArgumentException("URL is required.", nameof(url));
+        if (IsDeleted) throw new InvalidShortUrlStateException("update");
+        if (string.IsNullOrWhiteSpace(url)) throw new RequiredShortUrlValueException("url");
         if (url != LongUrl)
         {
             LongUrl = url;
@@ -45,7 +46,7 @@ public sealed class ShortUrl
     public void Delete(DateTimeOffset now)
     {
         using var activity = ActivitySources.ShortUrl.StartActivity(nameof(Delete));
-        if (IsDeleted) throw new InvalidOperationException("A deleted short URL cannot be deleted again.");
+        if (IsDeleted) throw new InvalidShortUrlStateException("delete");
         IsDeleted = true;
         UpdatedAt = now;
     }

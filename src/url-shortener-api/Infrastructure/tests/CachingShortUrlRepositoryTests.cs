@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using UrlShortener.Domain.Entities;
@@ -11,6 +12,64 @@ namespace UrlShortener.Infrastructure.Tests;
 public sealed class CachingShortUrlRepositoryTests
 {
     private static readonly TimeSpan Ttl = TimeSpan.FromSeconds(300);
+
+    [Theory]
+    [InlineData("https://cached.test", "cache.hit")]
+    [InlineData(null, "cache.miss")]
+    [InlineData("not-a-url", "cache.invalid_value")]
+    public async Task Read_outcomes_emit_expected_events(string? cached, string expected)
+    {
+        using var listener = Listen(out var events);
+        var db = new FakeDatabase { Destination = "https://db.test" };
+        await Create(db, new FakeCache { GetValue = cached }).FindActiveDestinationByCodeAsync("abc123", default);
+        Assert.Contains(expected, events);
+        if (expected is "cache.miss" or "cache.invalid_value") Assert.DoesNotContain("cache.read.error", events);
+    }
+
+    [Fact]
+    public async Task Read_degradation_does_not_emit_miss_and_error_tag_is_allowlisted()
+    {
+        using var listener = Listen(out var events, out var tags);
+        var db = new FakeDatabase { Destination = "https://db.test" };
+        await Create(db, new FakeCache { GetError = new InvalidOperationException("secret") }).FindActiveDestinationByCodeAsync("abc123", default);
+        Assert.Contains("cache.read.error", events);
+        Assert.DoesNotContain("cache.miss", events);
+        Assert.All(tags, tag => Assert.Equal("exception.type", tag.Key));
+    }
+
+    [Fact]
+    public async Task Write_timeout_and_error_emit_distinct_events()
+    {
+        using var listener = Listen(out var events);
+        await Create(new FakeDatabase(), new FakeCache { SetDelay = TimeSpan.FromMilliseconds(500) }, 20).SaveAsync(Entity("abc123", "https://new.test"), default);
+        Assert.Contains("cache.write.timeout", events);
+        events.Clear();
+        await Create(new FakeDatabase(), new FakeCache { SetError = new InvalidOperationException() }).SaveAsync(Entity("abc123", "https://new.test"), default);
+        Assert.Contains("cache.write.error", events);
+    }
+
+    [Fact]
+    public async Task Unsampled_activity_keeps_behavior_without_events()
+    {
+        using var listener = Listen(out var events, sample: false);
+        var db = new FakeDatabase { Destination = "https://db.test" };
+        Assert.Equal(db.Destination, await Create(db, new FakeCache()).FindActiveDestinationByCodeAsync("abc123", default));
+        Assert.Empty(events);
+    }
+
+    private static ActivityListener Listen(out List<string> events, out List<KeyValuePair<string, object?>> tags)
+    {
+        tags = [];
+        return Listen(out events, true, tags);
+    }
+    private static ActivityListener Listen(out List<string> events, bool sample = true, List<KeyValuePair<string, object?>>? tags = null)
+    {
+        var capturedEvents = new List<string>();
+        events = capturedEvents;
+        var listener = new ActivityListener { ShouldListenTo = source => source.Name.Contains("CachingShortUrlRepository"), Sample = (ref ActivityCreationOptions<ActivityContext> _) => sample ? ActivitySamplingResult.AllData : ActivitySamplingResult.None, ActivityStarted = activity => activity.ActivityTraceFlags = ActivityTraceFlags.Recorded, ActivityStopped = activity => { foreach (var e in activity.Events) { capturedEvents.Add(e.Name); if (tags is not null) foreach (var t in e.Tags) tags.Add(t); } } };
+        ActivitySource.AddActivityListener(listener);
+        return listener;
+    }
 
     [Fact]
     public async Task Hit_uses_exact_key_and_ttl_without_database()
